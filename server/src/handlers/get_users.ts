@@ -1,15 +1,36 @@
+import { db } from '../db';
+import { usersTable } from '../db/schema';
 import { type User } from '../schema';
+import { eq } from 'drizzle-orm';
 
 export async function getUsers(): Promise<User[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all users from the database for
-    // administrator management purposes. Should exclude sensitive data like password hashes.
-    return Promise.resolve([]);
+    try {
+        // Fetch all users from the database
+        // Note: This returns all fields including password_hash for admin purposes
+        // In a real application, you might want to exclude sensitive fields
+        const users = await db.select()
+            .from(usersTable)
+            .execute();
+
+        return users;
+    } catch (error) {
+        console.error('Failed to fetch users:', error);
+        throw error;
+    }
 }
 
 export async function getUserById(userId: number): Promise<User | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching a specific user by their ID.
-    // Should return user data or null if not found.
-    return Promise.resolve(null);
+    try {
+        // Fetch specific user by ID
+        const users = await db.select()
+            .from(usersTable)
+            .where(eq(usersTable.id, userId))
+            .execute();
+
+        // Return the user if found, null otherwise
+        return users.length > 0 ? users[0] : null;
+    } catch (error) {
+        console.error('Failed to fetch user by ID:', error);
+        throw error;
+    }
 }

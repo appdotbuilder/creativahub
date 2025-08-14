@@ -1,22 +1,35 @@
+import { db } from '../db';
+import { assignmentSubmissionsTable } from '../db/schema';
 import { type GradeAssignmentSubmissionInput, type AssignmentSubmission } from '../schema';
+import { eq } from 'drizzle-orm';
 
-export async function gradeAssignmentSubmission(input: GradeAssignmentSubmissionInput): Promise<AssignmentSubmission> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is grading student assignment submissions.
-    // Should validate that the user is the teacher of the course and update
-    // submission status, score, feedback, and graded timestamp.
-    return Promise.resolve({
-        id: input.id,
-        assignment_id: 1, // Placeholder
-        student_id: 1, // Placeholder
-        submission_url: null,
-        submission_text: null,
-        score: input.score,
+export const gradeAssignmentSubmission = async (input: GradeAssignmentSubmissionInput): Promise<AssignmentSubmission> => {
+  try {
+    // Update the submission with grade, feedback, status, and graded timestamp
+    const result = await db.update(assignmentSubmissionsTable)
+      .set({
+        score: input.score.toString(), // Convert number to string for numeric column
         feedback: input.feedback || null,
         status: 'graded',
-        submitted_at: new Date(),
         graded_at: new Date(),
-        created_at: new Date(),
         updated_at: new Date()
-    } as AssignmentSubmission);
-}
+      })
+      .where(eq(assignmentSubmissionsTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Assignment submission with id ${input.id} not found`);
+    }
+
+    // Convert numeric fields back to numbers before returning
+    const submission = result[0];
+    return {
+      ...submission,
+      score: submission.score ? parseFloat(submission.score) : null
+    };
+  } catch (error) {
+    console.error('Assignment submission grading failed:', error);
+    throw error;
+  }
+};

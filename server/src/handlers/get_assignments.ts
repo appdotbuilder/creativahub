@@ -1,8 +1,23 @@
+import { db } from '../db';
+import { assignmentsTable } from '../db/schema';
 import { type Assignment } from '../schema';
+import { eq } from 'drizzle-orm';
 
 export async function getCourseAssignments(courseId: number): Promise<Assignment[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all assignments for a specific course.
-    // Should return published assignments for students and all assignments for teachers.
-    return Promise.resolve([]);
+  try {
+    // Fetch all assignments for the specified course
+    const results = await db.select()
+      .from(assignmentsTable)
+      .where(eq(assignmentsTable.course_id, courseId))
+      .execute();
+
+    // Convert numeric fields from strings to numbers
+    return results.map(assignment => ({
+      ...assignment,
+      max_score: parseFloat(assignment.max_score) // Convert string to number
+    }));
+  } catch (error) {
+    console.error('Failed to fetch course assignments:', error);
+    throw error;
+  }
 }

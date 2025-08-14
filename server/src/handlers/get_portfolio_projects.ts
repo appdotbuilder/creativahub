@@ -1,15 +1,40 @@
+import { db } from '../db';
+import { portfolioProjectsTable } from '../db/schema';
 import { type PortfolioProject, type GetStudentPortfolioInput } from '../schema';
+import { eq, desc } from 'drizzle-orm';
 
 export async function getStudentPortfolio(input: GetStudentPortfolioInput): Promise<PortfolioProject[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all portfolio projects for a specific student.
-    // Should respect privacy settings and only show public projects to other users.
-    return Promise.resolve([]);
+  try {
+    // Fetch all portfolio projects for the specified student
+    // ordered by creation date (newest first)
+    const results = await db.select()
+      .from(portfolioProjectsTable)
+      .where(eq(portfolioProjectsTable.student_id, input.student_id))
+      .orderBy(desc(portfolioProjectsTable.created_at))
+      .execute();
+
+    // Return projects as-is since all fields are already in correct format
+    // (no numeric conversions needed for portfolio projects)
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch student portfolio:', error);
+    throw error;
+  }
 }
 
 export async function getPublicPortfolioProjects(): Promise<PortfolioProject[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all public portfolio projects
-    // for showcasing student work across the platform.
-    return Promise.resolve([]);
+  try {
+    // Fetch all public portfolio projects ordered by creation date (newest first)
+    const results = await db.select()
+      .from(portfolioProjectsTable)
+      .where(eq(portfolioProjectsTable.is_public, true))
+      .orderBy(desc(portfolioProjectsTable.created_at))
+      .execute();
+
+    // Return projects as-is since all fields are already in correct format
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch public portfolio projects:', error);
+    throw error;
+  }
 }

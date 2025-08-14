@@ -1,0 +1,308 @@
+import { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { trpc } from '@/utils/trpc';
+import type { User, Course, Assignment, AssignmentSubmission } from '../../../server/src/schema';
+import type { DashboardData } from '../../../server/src/handlers/get_dashboard_data';
+
+interface TeacherDashboardProps {
+  user: User;
+  data: DashboardData;
+}
+
+export function TeacherDashboard({ user, data }: TeacherDashboardProps) {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [recentAssignments, setRecentAssignments] = useState<Assignment[]>([]);
+  const [pendingSubmissions, setPendingSubmissions] = useState<AssignmentSubmission[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadTeacherData = useCallback(async () => {
+    try {
+      // Load teacher courses
+      const userCoursesData = await trpc.getUserCourses.query({
+        user_id: user.id,
+        role: user.role
+      });
+      setCourses(userCoursesData);
+
+      // Load recent assignments from teacher's courses
+      const assignmentPromises = userCoursesData.map((course: Course) =>
+        trpc.getCourseAssignments.query({ courseId: course.id })
+      );
+      const allAssignments = await Promise.all(assignmentPromises);
+      const flatAssignments = allAssignments.flat();
+      setRecentAssignments(flatAssignments.slice(0, 5));
+
+      // Load pending submissions for grading (simplified approach)
+      // In a real app, you'd have a specific endpoint for this
+      const submissionPromises = flatAssignments.map((assignment: Assignment) =>
+        trpc.getAssignmentSubmissions.query({ assignmentId: assignment.id })
+      );
+      const allSubmissions = await Promise.all(submissionPromises);
+      const flatSubmissions = allSubmissions.flat();
+      const pending = flatSubmissions.filter((sub: AssignmentSubmission) => sub.status === 'submitted');
+      setPendingSubmissions(pending.slice(0, 10));
+    } catch (error) {
+      console.error('Failed to load teacher data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user.id, user.role]);
+
+  useEffect(() => {
+    loadTeacherData();
+  }, [loadTeacherData]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg p-6">
+        <h1 className="text-3xl font-bold mb-2">
+          Selamat datang, {user.full_name}! 👨‍🏫
+        </h1>
+        <p className="text-blue-100">
+          Mari membimbing siswa menuju prestasi terbaiknya
+        </p>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Kursus Diajar</CardTitle>
+            <span className="text-2xl">📚</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {data.teachingCourses || courses.length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Total kursus aktif
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Tugas</CardTitle>
+            <span className="text-2xl">📝</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {data.totalAssignments || recentAssignments.length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tugas yang dibuat
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Perlu Dinilai</CardTitle>
+            <span className="text-2xl">⏳</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">
+              {data.pendingSubmissions || pendingSubmissions.length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tugas menunggu penilaian
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Siswa Total</CardTitle>
+            <span className="text-2xl">👥</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-indigo-600">
+              {/* This would need a separate endpoint to get total enrolled students */}
+              0
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Siswa terdaftar
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* My Courses */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              📚 Kursus Saya
+            </CardTitle>
+            <CardDescription>
+              Kursus yang Anda kelola
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {courses.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Belum ada kursus yang dibuat
+                </p>
+              ) : (
+                courses.slice(0, 3).map((course: Course) => (
+                  <div key={course.id} className="flex items-start space-x-3">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <span className="text-xl">🎓</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm truncate">{course.title}</h3>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        {course.description || 'Deskripsi tidak tersedia'}
+                      </p>
+                      <div className="mt-2">
+                        <Badge variant={course.status === 'published' ? 'default' : 'secondary'}>
+                          {course.status === 'published' ? 'Aktif' : 
+                           course.status === 'draft' ? 'Draft' : 'Arsip'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              {courses.length > 3 && (
+                <Button variant="outline" size="sm" className="w-full">
+                  Lihat Semua Kursus
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Assignments */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              📝 Tugas Terbaru
+            </CardTitle>
+            <CardDescription>
+              Tugas yang Anda buat
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentAssignments.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Belum ada tugas yang dibuat
+                </p>
+              ) : (
+                recentAssignments.map((assignment: Assignment) => (
+                  <div key={assignment.id} className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm truncate">{assignment.title}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {assignment.due_date ? (
+                          <>Deadline: {assignment.due_date.toLocaleDateString('id-ID')}</>
+                        ) : (
+                          'Tidak ada deadline'
+                        )}
+                      </p>
+                      <div className="mt-2">
+                        <Badge variant={
+                          assignment.status === 'published' ? 'default' : 
+                          assignment.status === 'draft' ? 'secondary' : 'outline'
+                        }>
+                          {assignment.status === 'published' ? 'Aktif' : 
+                           assignment.status === 'draft' ? 'Draft' : 'Ditutup'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">
+                        Nilai Max: {assignment.max_score}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Pending Submissions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            ⏳ Tugas Menunggu Penilaian
+          </CardTitle>
+          <CardDescription>
+            Tugas siswa yang perlu dinilai
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {pendingSubmissions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Tidak ada tugas yang menunggu penilaian
+              </p>
+            ) : (
+              pendingSubmissions.slice(0, 5).map((submission: AssignmentSubmission) => (
+                <div key={submission.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">
+                      Tugas ID: {submission.assignment_id}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Siswa ID: {submission.student_id} • 
+                      Dikumpulkan: {submission.submitted_at?.toLocaleDateString('id-ID') || 'Tidak diketahui'}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline">
+                    Nilai Tugas
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>🚀 Aksi Cepat</CardTitle>
+          <CardDescription>
+            Fitur yang sering digunakan
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Button variant="outline" className="h-20 flex flex-col items-center space-y-2">
+              <span className="text-2xl">➕</span>
+              <span className="text-sm">Buat Kursus</span>
+            </Button>
+            <Button variant="outline" className="h-20 flex flex-col items-center space-y-2">
+              <span className="text-2xl">📝</span>
+              <span className="text-sm">Buat Tugas</span>
+            </Button>
+            <Button variant="outline" className="h-20 flex flex-col items-center space-y-2">
+              <span className="text-2xl">📊</span>
+              <span className="text-sm">Nilai Tugas</span>
+            </Button>
+            <Button variant="outline" className="h-20 flex flex-col items-center space-y-2">
+              <span className="text-2xl">📚</span>
+              <span className="text-sm">Kelola Materi</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
